@@ -351,7 +351,7 @@ const visit = async (act, page) => {
   const resolved = act.which.replace('__dirname', __dirname);
   try {
     await page.goto(resolved, {
-      timeout: 20000,
+      timeout: 40000,
       waitUntil: debug ? 'networkidle' : 'domcontentloaded'
     });
     // Press the Esc key to dismiss any initial modal dialog.
