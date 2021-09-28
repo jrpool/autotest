@@ -97,10 +97,6 @@ const browserTypeNames = {
 };
 // Items that may be waited for.
 const waitables = ['url', 'title', 'body'];
-// ########## VARIABLES
-// Facts about the current browser.
-let browserContext;
-let browserTypeName;
 // ########## FUNCTIONS
 // Serves a redirection.
 const redirect = (url, response) => {
@@ -108,13 +104,13 @@ const redirect = (url, response) => {
   response.setHeader('Location', url);
   response.end();
 };
-// Launches a browser.
-const launch = async typeName => {
+// Launches a browser and returns its page.
+const launch = async (typeName, currentContext) => {
   const browserType = require('playwright')[typeName];
   // If the specified browser type exists:
   if (browserType) {
     // Close any existing browser.
-    let browser = browserContext && browserContext.browser();
+    let browser = currentContext && currentContext.browser();
     if (browser) {
       await browser.close();
     }
@@ -128,7 +124,7 @@ const launch = async typeName => {
     }
     browser = await browserType.launch(browserOptions);
     // Create a new context (window) in it.
-    browserContext = await browser.newContext();
+    const browserContext = await browser.newContext();
     // When a page is added to the browser context:
     browserContext.on('page', page => {
       // Make its console messages appear in the Playwright console.
@@ -138,8 +134,7 @@ const launch = async typeName => {
     const page = await browserContext.newPage();
     // Wait until it is stable.
     await page.waitForLoadState('networkidle');
-    // Update the name of the current browser type.
-    browserTypeName = typeName;
+    return page;
   }
 };
 // Serves a system error message.
@@ -422,9 +417,7 @@ const doActs = async (report, actIndex, page, timeStamp, reportDir) => {
       // If the command is a launch:
       if (act.type === 'launch') {
         // Launch the specified browser, creating a browser context and a page in it.
-        await launch(act.which);
-        // Identify its only page as current.
-        page = browserContext.pages()[0];
+        page = launch(act.which);
       }
       // Otherwise, if it is a score:
       else if (act.type === 'score') {
@@ -462,7 +455,7 @@ const doActs = async (report, actIndex, page, timeStamp, reportDir) => {
         // Otherwise, if the act is a page switch:
         else if (act.type === 'page') {
           // Wait for a page to be created and identify it as current.
-          page = await browserContext.waitForEvent('page');
+          page = await page.context.waitForEvent('page');
           // Wait until it is stable and thus ready for the next act.
           await page.waitForLoadState('networkidle', {timeout: 20000});
           // Add the resulting URL and any description of it to the act.
