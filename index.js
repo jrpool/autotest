@@ -132,6 +132,13 @@ const launch = async (typeName, currentContext) => {
     });
     // Open the first page of the context.
     const page = await browserContext.newPage();
+    // Record the browser type.
+    if (page.custom) {
+      page.custom.browserTypeName = typeName;
+    }
+    else {
+      page.custom = {browserTypeName: typeName};
+    }
     // Wait until it is stable.
     await page.waitForLoadState('networkidle');
     return page;
@@ -511,7 +518,7 @@ const doActs = async (report, actIndex, page, timeStamp, reportDir) => {
               act.exhibits = 'appended';
               // Replace any browser-type placeholder in the exhibits.
               const newExhibits = testReport.exhibits.replace(
-                /__browserTypeName__/g, browserTypeNames[browserTypeName]
+                /__browserTypeName__/g, browserTypeNames[page.custom.browserTypeName]
               );
               // Append the exhibits to any existing ones.
               if (report.exhibits) {
@@ -614,7 +621,7 @@ const doActs = async (report, actIndex, page, timeStamp, reportDir) => {
 };
 // Handles a script request.
 const scriptHandler = async (
-  what, acts, query, stage, urlIndex, response
+  what, acts, query, response
 ) => {
   const report = {};
   report.script = query.scriptName;
@@ -818,7 +825,7 @@ const requestHandler = (request, response) => {
             // If there is no batch:
             if (batchName === 'None') {
               // Process the script, using the commands as the initial acts.
-              scriptHandler(what, commands, query, 'all', -1, response);
+              scriptHandler(what, commands, query, response);
             }
             // Otherwise, i.e. if there is a batch:
             else {
@@ -839,38 +846,31 @@ const requestHandler = (request, response) => {
                   && hosts.every(host => host.which && host.what && isURL(host.which))
                 ) {
                   // FUNCTION DEFINITION START
-                  // Recursively process commands on the hosts of a batch.
-                  const doBatch = async (hosts, isFirst, hostIndex) => {
+                  // Process commands on the hosts of a batch.
+                  const doBatch = async hosts => {
                     if (hosts.length) {
-                      // Identify the first host.
-                      const firstHost = hosts[0];
-                      console.log(`>>>>> About to process ${firstHost.what} in batch`);
-                      // Replace all hosts in the script with it.
-                      commands.forEach(command => {
-                        if (command.type === 'url') {
-                          command.which = firstHost.which;
-                          command.what = firstHost.what;
-                        }
+                      // For each host:
+                      hosts.forEach(async host => {
+                        console.log(`>>>>> About to process ${host.what} in batch`);
+                        // Create a copy of the commands.
+                        const hostCommands = commands.map(command => Object.assign({}, command));
+                        // Replace the hosts of all url commands with the host.
+                        hostCommands.forEach(hostCommand => {
+                          if (hostCommand.type === 'url') {
+                            hostCommand.which = host.which;
+                            hostCommand.what = host.what;
+                          }
+                        });
+                        // Initialize an array of the acts as a copy of the host commands.
+                        const acts = JSON.parse(JSON.stringify(hostCommands));
+                        // Process the commands on the host.
+                        await scriptHandler(what, acts, query, response);
                       });
-                      // Identify the stage of the host.
-                      let stage = 'more';
-                      if (isFirst) {
-                        stage = hosts.length > 1 ? 'start' : 'all';
-                      }
-                      else {
-                        stage = hosts.length > 1 ? 'more' : 'end';
-                      }
-                      // Initialize an array of the acts as a copy of the commands.
-                      const acts = JSON.parse(JSON.stringify(commands));
-                      // Process the commands on the host.
-                      await scriptHandler(what, acts, query, stage, hostIndex, response);
-                      // Process the remaining hosts.
-                      await doBatch(hosts.slice(1), false, hostIndex + 1);
                     }
                   };
                   // FUNCTION DEFINITION END
                   // Process the script on the batch.
-                  doBatch(hosts, true, 0);
+                  doBatch(hosts);
                 }
                 // Otherwise, i.e. if the batch is invalid:
                 else {
