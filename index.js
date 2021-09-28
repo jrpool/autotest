@@ -386,7 +386,7 @@ const doActs = async (report, actIndex, page, timeStamp, reportDir) => {
       // If the command is a launch:
       if (act.type === 'launch') {
         // Launch the specified browser, creating a browser context and a page in it.
-        page = launch(act.which);
+        page = await launch(act.which);
       }
       // Otherwise, if it is a score:
       else if (act.type === 'score') {
