@@ -182,60 +182,22 @@ const servePage = (content, newURL, mimeType, response) => {
   }
   response.end(content);
 };
-// Serves or returns part of all of an HTML or plain-text page.
-const render = (path, stage, which, query, response) => {
+// Renders and serves an HTML page.
+const render = (path, which, query, response) => {
   if (! response.writableEnded) {
-    // If an HTML page is to be rendered:
-    if (['all', 'raw'].includes(stage)) {
-      // Get the page.
-      return fs.readFile(`./${path}/${which}.html`, 'utf8')
-      .then(
-        // When it arrives:
-        page => {
-          // Replace its placeholders with eponymous query parameters.
-          const renderedPage = page.replace(/__([a-zA-Z]+)__/g, (ph, qp) => query[qp]);
-          // If the page is ready to serve in its entirety:
-          if (stage === 'all') {
-            // Serve it.
-            servePage(renderedPage, `/${path}-out.html`, 'text/html', response);
-            return '';
-          }
-          // Otherwise, i.e. if the page needs modification before it is served:
-          else {
-            return renderedPage;
-          }
-        },
-        error => serveError(new Error(error), response)
-      );
-    }
-    // Otherwise, if a plain-text page is ready to start:
-    else if (stage === 'start') {
-      // Serve its start.
-      response.setHeader('Content-Type', 'text/plain; charset=UTF-8');
-      // Set headers to tell the browser to render content chunks as they arrive.
-      response.setHeader('Transfer-Encoding', 'chunked');
-      response.setHeader('X-Content-Type-Options', 'nosniff');
-      if (path) {
-        response.setHeader('Content-Location', `/${path}-out.txt`);
-      }
-      response.write(`Report timestamp: ${query.timeStamp}\n\nProcessed URL 0\n`);
-      return '';
-    }
-    // Otherwise, if a plain-text page is ready to continue:
-    else if (stage === 'more') {
-      // Serve its continuation.
-      response.write(`Processed URL ${query.urlIndex}\n`);
-      return '';
-    }
-    // Otherwise, if a plain-text page is ready to end:
-    else if (stage === 'end') {
-      // Serve its end.
-      response.end(`Processed URL ${query.urlIndex}\n`);
-      return '';
-    }
-    else {
-      serveError('ERROR: Invalid stage.', response);
-    }
+    // Get the page.
+    return fs.readFile(`./${path}/${which}.html`, 'utf8')
+    .then(
+      // When it arrives:
+      page => {
+        // Replace its placeholders with eponymous query parameters.
+        const renderedPage = page.replace(/__([a-zA-Z]+)__/g, (ph, qp) => query[qp]);
+        // Serve it.
+        servePage(renderedPage, `/${path}-out.html`, 'text/html', response);
+        return '';
+      },
+      error => serveError(new Error(error), response)
+    );
   }
 };
 // Returns the index of an element matching a text, among elements of a type.
@@ -620,9 +582,7 @@ const doActs = async (report, actIndex, page, timeStamp, reportDir) => {
   }
 };
 // Handles a script request.
-const scriptHandler = async (
-  what, acts, query, response
-) => {
+const scriptHandler = async (what, acts, query, index, response) => {
   const report = {};
   report.script = query.scriptName;
   report.batch = query.batchName;
@@ -630,7 +590,7 @@ const scriptHandler = async (
   report.timeStamp = query.timeStamp;
   report.acts = acts;
   report.testTimes = [];
-  const urlSuffix = urlIndex > -1 ? `-${urlIndex.toString().padStart(3, '0')}` : '';
+  const urlSuffix = index > -1 ? `-${index.toString().padStart(3, '0')}` : '';
   // Perform the specified acts and add the results and exhibits to the report.
   await doActs(report, 0, null, `${query.timeStamp}${urlSuffix}`, query.reportDir);
   // If any exhibits have been added to the report, move them to the query.
@@ -642,12 +602,12 @@ const scriptHandler = async (
   else {
     // Add properties to the query.
     query.exhibits = '<p><strong>None</strong></p>';
-    query.urlIndex = urlIndex;
+    query.urlIndex = index;
   }
   // Convert the report to JSON.
   query.report = JSON.stringify(report, null, 2).replace(/</g, '&lt;');
   // Render and serve the output.
-  render('', stage, 'out', query, response);
+  render('', 'out', query, response);
 };
 // Recursively gets an array of file-name base/property-value arrays from JSON object files.
 const getWhats = async (path, baseNames, result) => {
@@ -730,7 +690,7 @@ const requestHandler = (request, response) => {
         query.batchDir = process.env.BATCHDIR || '';
         query.reportDir = process.env.REPORTDIR || '';
         // Render the page.
-        render('', 'all', 'index', query, response);
+        render('', 'index', query, response);
       }
       // Otherwise, i.e. if the URL is invalid:
       else {
@@ -785,8 +745,8 @@ const requestHandler = (request, response) => {
             const state = index === 0 ? 'selected ' : '';
             return `<option ${state}value="${pair[0]}">${pair[0]}: ${pair[1]}</option>`;
           }).join('\n              ');
-          // Render the choice page.
-          render('', 'all', 'which', query, response);
+          // Render the specification page.
+          render('', 'which', query, response);
         }
         // Otherwise, i.e. if no scripts exist in the script directory:
         else {
@@ -850,7 +810,7 @@ const requestHandler = (request, response) => {
                   const doBatch = async hosts => {
                     if (hosts.length) {
                       // For each host:
-                      hosts.forEach(async host => {
+                      hosts.forEach(async (host, index) => {
                         console.log(`>>>>> About to process ${host.what} in batch`);
                         // Create a copy of the commands.
                         const hostCommands = commands.map(command => Object.assign({}, command));
@@ -864,7 +824,7 @@ const requestHandler = (request, response) => {
                         // Initialize an array of the acts as a copy of the host commands.
                         const acts = JSON.parse(JSON.stringify(hostCommands));
                         // Process the commands on the host.
-                        await scriptHandler(what, acts, query, response);
+                        await scriptHandler(what, acts, query, index, response);
                       });
                     }
                   };
