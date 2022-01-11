@@ -1217,7 +1217,6 @@ const runScriptWithBatch = async (script, batch, server) => {
   // Process commands on the hosts of a batch.
   const results = [];
   for (const [index, firstHost] of hosts.entries()) {
-    const isFirst = index === 0;
     console.log(`>>>>>> ${firstHost.what}`);
     // Replace all hosts in the script with it.
     commands.forEach(command => {
@@ -1228,11 +1227,14 @@ const runScriptWithBatch = async (script, batch, server) => {
     });
     // Identify the stage of the host.
     let stage = 'more';
-    if (isFirst) {
-      stage = hosts.length > 1 ? 'start' : 'all';
-    }
-    else {
-      stage = hosts.length > 1 ? 'more' : 'end';
+    if (index === 0) {
+      if (hosts.length === 1) {
+        stage = 'all';
+      } else {
+        stage = 'start';
+      }
+    } else if (index === hosts.length - 1) {
+      stage = 'end';
     }
     // Initialize an array of the acts as a copy of the commands.
     const acts = JSON.parse(JSON.stringify(commands));
