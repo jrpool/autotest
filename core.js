@@ -1163,6 +1163,22 @@ const isValidScript = (script) => {
   );
 };
 
+// Same as isValidScript, but we confirm strict is truthy (instead of just boolean type)
+const isValidValidator = (validator) => {
+  const {what, strict, commands} = validator;
+  return (
+    what
+      && strict
+      && commands
+      && typeof what === 'string'
+      && Array.isArray(commands)
+      && commands[0].type === 'launch'
+      && commands.length > 1
+      && commands[1].type === 'url'
+      && isURL(commands[1].which)
+  );
+};
+
 const isValidBatch = (batch) => {
   const batchWhat = batch.what;
   const {hosts} = batch;
@@ -1282,21 +1298,11 @@ const which = async (scriptDir, scriptName, batchDir, batchName, server) => {
 };
 
 const validate = async (script, validatorName, server) => {
-  const {what, strict, commands} = script;
   // If the validator is valid:
-  if (
-    what
-      && strict
-      && commands
-      && typeof what === 'string'
-      && Array.isArray(commands)
-      && commands[0].type === 'launch'
-      && commands.length > 1
-      && commands[1].type === 'url'
-      && isURL(commands[1].which)
-  ) {
+  if (isValidValidator(script)) {
     console.log(`>>>>>>>> ${validatorName}: ${what}`);
     // Process it, using the commands as the initial acts.
+    const {what, strict, commands} = script;
     scriptHandler(what, strict, commands, 'all', -1);
   }
   // Otherwise, i.e. if the validator is invalid:
