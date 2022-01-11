@@ -1213,39 +1213,32 @@ const which = async (scriptDir, scriptName, batchDir, batchName, server) => {
                 });
               }
             }
-            // FUNCTION DEFINITION START
-            // Recursively process commands on the hosts of a batch.
-            const doBatch = async (hosts, isFirst, hostIndex) => {
-              if (hosts.length) {
-                // Identify the first host.
-                const firstHost = hosts[0];
-                console.log(`>>>>>> ${firstHost.what}`);
-                // Replace all hosts in the script with it.
-                commands.forEach(command => {
-                  if (command.type === 'url') {
-                    command.which = firstHost.which;
-                    command.what = firstHost.what;
-                  }
-                });
-                // Identify the stage of the host.
-                let stage = 'more';
-                if (isFirst) {
-                  stage = hosts.length > 1 ? 'start' : 'all';
+            // Process commands on the hosts of a batch.
+            const results = [];
+            for (const [index, firstHost] of hosts.entries()) {
+              const isFirst = index === 0;
+              console.log(`>>>>>> ${firstHost.what}`);
+              // Replace all hosts in the script with it.
+              commands.forEach(command => {
+                if (command.type === 'url') {
+                  command.which = firstHost.which;
+                  command.what = firstHost.what;
                 }
-                else {
-                  stage = hosts.length > 1 ? 'more' : 'end';
-                }
-                // Initialize an array of the acts as a copy of the commands.
-                const acts = JSON.parse(JSON.stringify(commands));
-                // Process the commands on the host.
-                await scriptHandler(what, strict, acts, stage, hostIndex, server);
-                // Process the remaining hosts.
-                await doBatch(hosts.slice(1), false, hostIndex + 1);
+              });
+              // Identify the stage of the host.
+              let stage = 'more';
+              if (isFirst) {
+                stage = hosts.length > 1 ? 'start' : 'all';
               }
-            };
-            // FUNCTION DEFINITION END
-            // Process the script on the batch.
-            doBatch(hosts, true, 0);
+              else {
+                stage = hosts.length > 1 ? 'more' : 'end';
+              }
+              // Initialize an array of the acts as a copy of the commands.
+              const acts = JSON.parse(JSON.stringify(commands));
+              // Process the commands on the host.
+              results.push(await scriptHandler(what, strict, acts, stage, index, server));
+            }
+            return results;
           }
           // Otherwise, i.e. if the batch is invalid:
           else {
