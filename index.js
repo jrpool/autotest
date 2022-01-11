@@ -12,7 +12,7 @@ const http = require('http');
 // Module to create an HTTPS server and client.
 const https = require('https');
 
-const {getWhats, which, validate} = require('./core');
+const {getWhats, isValidScript, isValidBatch, isValidValidator, scriptHandler, runScriptWithBatch,} = require('./core');
 
 // ########## CONSTANTS
 // Set debug to true to add debugging features.
@@ -306,13 +306,62 @@ const requestHandler = (request, response) => {
         && query.batchName
       ) {
         const {scriptDir, batchDir, scriptName, batchName} = query;
-        const server = {
-          query,
-          response,
-          render,
-          serveMessage,
-        };
-        which(scriptDir, scriptName, batchDir, batchName, server);
+        // Get the content of the script.
+        const scriptJSON = await fs.readFile(`${scriptDir}/${scriptName}.json`, 'utf8');
+        // When the content arrives, if there is any:
+        if (scriptJSON) {
+          // Get the script data.
+          const script = JSON.parse(scriptJSON);
+          // If the script is valid:
+          if (isValidScript(script)) {
+            const {what, strict, commands} = script;
+            console.log(`>>>>>>>> ${scriptName}: ${what}`);
+            const server = {
+              render,
+              query,
+              response,
+            };
+            // If there is no batch:
+            if (batchName === 'None') {
+              // Process the script, using the commands as the initial acts.
+              return await scriptHandler(what, strict, commands, 'all', -1, server);
+            }
+            // Otherwise, i.e. if there is a batch:
+            else {
+              // Get its content.
+              const batchJSON = await fs.readFile(`${batchDir}/${batchName}.json`, 'utf8');
+              // When the content arrives, if there is any:
+              if (batchJSON) {
+                // Get the batch data.
+                const batch = JSON.parse(batchJSON);
+                // If the batch is valid:
+                if (isValidBatch(batch)) {
+                  return await runScriptWithBatch(script, batch, server);
+                }
+                // Otherwise, i.e. if the batch is invalid:
+                else {
+                  // Serve an error message.
+                  serveMessage(`ERROR: Batch ${batchName} invalid`, response);
+                }
+              }
+              // Otherwise, i.e. if the batch has no content:
+              else {
+                // Serve an error message.
+                serveMessage(`ERROR: Batch ${batchName} empty`, response);
+              }
+            }
+          }
+          // Otherwise, i.e. if the script is invalid:
+          else {
+            // Serve an error message.
+            serveMessage(`ERROR: Script ${scriptName} invalid`, response);
+          }
+        }
+        // Otherwise, i.e. if the script has no content:
+        else {
+          // Serve an error message.
+          serveMessage(`ERROR: Script ${scriptName} empty`, response);
+        }
       }
       // Otherwise, if the request submitted the validate form:
       else if (pathName === '/validate' && query.validatorName && query.reportDir) {
@@ -323,13 +372,18 @@ const requestHandler = (request, response) => {
         if (scriptJSON) {
           // Get the script data.
           const script = JSON.parse(scriptJSON);
-          const server = {
-            query,
-            response,
-            render,
-            serveMessage,
-          };
-          validate(script, validatorName, server);
+          // If the validator is valid:
+          if (isValidValidator(script)) {
+            console.log(`>>>>>>>> ${validatorName}: ${what}`);
+            // Process it, using the commands as the initial acts.
+            const {what, strict, commands} = script;
+            scriptHandler(what, strict, commands, 'all', -1);
+          }
+          // Otherwise, i.e. if the validator is invalid:
+          else {
+            // Serve an error message.
+            serveMessage(`ERROR: Validator script ${validatorName} invalid`, response);
+          }
         }
         // Otherwise, i.e. if the validator has no content:
         else {
