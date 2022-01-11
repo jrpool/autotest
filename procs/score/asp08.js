@@ -212,14 +212,16 @@ exports.scorer = acts => {
             rules.wave = 'multiply alerts by 2, contrast errors by 3, errors by 4; sum; subtract discounts';
             let totalDiscount = 0;
             ['error', 'contrast', 'alert'].forEach(level => {
-              const items = facts[level].items;
-              const waveRules = Object.keys(items);
-              waveRules.forEach(rule => {
-                const ruleDiscount = ruleDiscounts.wave[rule] * items[rule].count;
-                if (ruleDiscount) {
-                  totalDiscount += ruleDiscount;
-                }
-              });
+              if (facts[level].items) {
+                const items = facts[level].items;
+                const waveRules = Object.keys(items);
+                waveRules.forEach(rule => {
+                  const ruleDiscount = ruleDiscounts.wave[rule] * items[rule].count;
+                  if (ruleDiscount) {
+                    totalDiscount += ruleDiscount;
+                  }
+                });
+              }
             });
             deficit.wave
               = 2 * facts.alert.count
