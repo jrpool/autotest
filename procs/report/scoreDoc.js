@@ -12,19 +12,11 @@
 const fs = require('fs');
 // Module to keep secrets local.
 require('dotenv').config();
-// ########## OPERATION
-let [reportSubdir, docSubdir, scoreProc, version] = process.argv.slice(2);
-// Directory.
-const dir = `${process.env.REPORTDIR}/${reportSubdir}`;
-const fileNames = fs.readdirSync(`${dir}/jsonReports`);
-const template = fs.readFileSync(`./docTemplates/${docSubdir}/index.html`, 'utf8');
-const {parameters} = require(`../../docTemplates/${docSubdir}/index`);
-// For each JSON report file:
-fileNames.forEach(fn => {
-  // Get its content.
-  const fileBase = fn.slice(0, -5);
-  const sourceJSON = fs.readFileSync(`${dir}/jsonReports/${fn}`, 'utf8');
-  const sourceData = JSON.parse(sourceJSON);
+
+// Returns the generate html for a given report data, doc tempalte, scoring and version
+const scoreDoc = (fn, sourceData, docSubdir, scoreProc, version) => {
+  const template = fs.readFileSync(`./docTemplates/${docSubdir}/index.html`, 'utf8');
+  const {parameters} = require(`../../docTemplates/${docSubdir}/index`);
   // Get its data.
   const {testDate} = sourceData;
   const testActs = sourceData.acts.filter(act => act.type === 'test');
@@ -40,8 +32,34 @@ fileNames.forEach(fn => {
   const paramData = parameters(
     fn, sourceData, testData, scoreData, scoreProc, version, orgData, testDate
   );
-  // Replace the placeholders.
+    // Replace the placeholders.
   const htmlReport = template
   .replace(/__([a-zA-Z]+)__/g, (placeHolder, param) => paramData[param]);
-  fs.writeFileSync(`${dir}/htmlReports/${fileBase}.html`, htmlReport);
-});
+  return htmlReport;
+};
+
+
+// Create an html report for each jsonReport in the given report directory
+const scoreDocs = (dir, docSubdir, scoreProc, version) => {
+  const fileNames = fs.readdirSync(`${dir}/jsonReports`);
+  // For each JSON report file:
+  fileNames.forEach(fn => {
+    const fileBase = fn.slice(0, -5);
+    // Get its content.
+    const sourceJSON = fs.readFileSync(`${dir}/jsonReports/${fn}`, 'utf8');
+    const sourceData = JSON.parse(sourceJSON);
+    const htmlReport = scoreDoc(fn, sourceData, docSubdir, scoreProc, version);
+    fs.writeFileSync(`${dir}/htmlReports/${fileBase}.html`, htmlReport);
+  });
+};
+
+// If called as a node script (e.g by scoreAll.sh)
+if (require.main === module) {
+  // ########## OPERATION
+  let [reportSubdir, docSubdir, scoreProc, version] = process.argv.slice(2);
+  // Directory.
+  const dir = `${process.env.REPORTDIR}/${reportSubdir}`;
+  scoreDocs(dir, docSubdir, scoreProc, version);
+}
+
+module.exports = scoreDoc;
