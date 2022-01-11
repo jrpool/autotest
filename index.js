@@ -12,7 +12,7 @@ const http = require('http');
 // Module to create an HTTPS server and client.
 const https = require('https');
 
-const {getWhats, isValidScript, isValidBatch, isValidValidator, scriptHandler, runScriptWithBatch,} = require('./core');
+const {getWhats, isValidScript, isValidBatch, isValidValidator, scriptHandler, runScriptWithBatch} = require('./core');
 
 // ########## CONSTANTS
 // Set debug to true to add debugging features.

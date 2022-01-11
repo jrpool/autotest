@@ -1243,6 +1243,28 @@ const runScriptWithBatch = async (script, batch, server) => {
   return results;
 };
 
+const generateHtmlReportFromData = (filename, sourceData, template, parameters, scoreProc, version) => {
+// Get its data.
+  const {testDate} = sourceData;
+  const testActs = sourceData.acts.filter(act => act.type === 'test');
+  const testData = {};
+  testActs.forEach(act => {
+    testData[act.which] = act;
+  });
+  const scoreData = sourceData.acts.find(act => act.type === 'score').result;
+  scoreProc || (scoreProc = scoreData.scoreProc);
+  version || (version = scoreData.version);
+  const orgData = sourceData.acts.find(act => act.type === 'url');
+  // Compute the values to be substituted for HTML template placeholders.
+  const paramData = parameters(
+    filename, sourceData, testData, scoreData, scoreProc, version, orgData, testDate
+  );
+    // Replace the placeholders.
+  const htmlReport = template
+  .replace(/__([a-zA-Z]+)__/g, (placeHolder, param) => paramData[param]);
+  return htmlReport;
+};
+
 module.exports = {
   getWhats,
   isValidScript,
@@ -1250,4 +1272,5 @@ module.exports = {
   isValidValidator,
   scriptHandler,
   runScriptWithBatch,
+  generateHtmlReportFromData,
 };
