@@ -1148,18 +1148,10 @@ const getWhats = async (path, baseNames, result) => {
   }
 };
 
-
-const which = async (scriptDir, scriptName, batchDir, batchName, server) => {
-  // Get the content of the script.
-  const scriptJSON = await fs.readFile(`${scriptDir}/${scriptName}.json`, 'utf8');
-  // When the content arrives, if there is any:
-  if (scriptJSON) {
-    // Get the script data.
-    const script = JSON.parse(scriptJSON);
-    const {what, strict, commands} = script;
-    // If the script is valid:
-    if (
-      what
+const isValidScript = (script) => {
+  const {what, strict, commands} = script;
+  return (
+    what
       && typeof strict === 'boolean'
       && commands
       && typeof what === 'string'
@@ -1168,7 +1160,83 @@ const which = async (scriptDir, scriptName, batchDir, batchName, server) => {
       && commands.length > 1
       && commands[1].type === 'url'
       && isURL(commands[1].which)
-    ) {
+  );
+};
+
+const isValidBatch = (batch) => {
+  const batchWhat = batch.what;
+  const {hosts} = batch;
+  return (
+    batchWhat
+    && hosts
+    && typeof batchWhat === 'string'
+    && Array.isArray(hosts)
+    && hosts.every(host => host.which && host.what && isURL(host.which))
+  );
+};
+
+const runScriptWithBatch = async (script, batch, server) => {
+  const {what, strict, commands} = script;
+  const {hosts} = batch;
+  // Inject url commands where necessary to undo DOM changes.
+  let injectMore = true;
+  while (injectMore) {
+    const injectIndex = commands.findIndex((command, index) =>
+      index < commands.length - 1
+                && command.type === 'test'
+                && commands[index + 1].type === 'test'
+                && domChangers.has(command.which)
+    );
+    if (injectIndex === -1) {
+      injectMore = false;
+    }
+    else {
+      commands.splice(injectIndex + 1, 0, {
+        type: 'url',
+        which: 'https://*',
+        what: 'URL'
+      });
+    }
+  }
+  // Process commands on the hosts of a batch.
+  const results = [];
+  for (const [index, firstHost] of hosts.entries()) {
+    const isFirst = index === 0;
+    console.log(`>>>>>> ${firstHost.what}`);
+    // Replace all hosts in the script with it.
+    commands.forEach(command => {
+      if (command.type === 'url') {
+        command.which = firstHost.which;
+        command.what = firstHost.what;
+      }
+    });
+    // Identify the stage of the host.
+    let stage = 'more';
+    if (isFirst) {
+      stage = hosts.length > 1 ? 'start' : 'all';
+    }
+    else {
+      stage = hosts.length > 1 ? 'more' : 'end';
+    }
+    // Initialize an array of the acts as a copy of the commands.
+    const acts = JSON.parse(JSON.stringify(commands));
+    // Process the commands on the host.
+    const result = await scriptHandler(what, strict, acts, stage, index, server);
+    results.push(result);
+  }
+  return results;
+};
+
+const which = async (scriptDir, scriptName, batchDir, batchName, server) => {
+  // Get the content of the script.
+  const scriptJSON = await fs.readFile(`${scriptDir}/${scriptName}.json`, 'utf8');
+  // When the content arrives, if there is any:
+  if (scriptJSON) {
+    // Get the script data.
+    const script = JSON.parse(scriptJSON);
+    // If the script is valid:
+    if (isValidScript(script)) {
+      const {what, strict, commands} = script;
       console.log(`>>>>>>>> ${scriptName}: ${what}`);
       // If there is no batch:
       if (batchName === 'None') {
@@ -1183,62 +1251,9 @@ const which = async (scriptDir, scriptName, batchDir, batchName, server) => {
         if (batchJSON) {
           // Get the batch data.
           const batch = JSON.parse(batchJSON);
-          const batchWhat = batch.what;
-          const {hosts} = batch;
           // If the batch is valid:
-          if (
-            batchWhat
-            && hosts
-            && typeof batchWhat === 'string'
-            && Array.isArray(hosts)
-            && hosts.every(host => host.which && host.what && isURL(host.which))
-          ) {
-            // Inject url commands where necessary to undo DOM changes.
-            let injectMore = true;
-            while (injectMore) {
-              const injectIndex = commands.findIndex((command, index) =>
-                index < commands.length - 1
-                && command.type === 'test'
-                && commands[index + 1].type === 'test'
-                && domChangers.has(command.which)
-              );
-              if (injectIndex === -1) {
-                injectMore = false;
-              }
-              else {
-                commands.splice(injectIndex + 1, 0, {
-                  type: 'url',
-                  which: 'https://*',
-                  what: 'URL'
-                });
-              }
-            }
-            // Process commands on the hosts of a batch.
-            const results = [];
-            for (const [index, firstHost] of hosts.entries()) {
-              const isFirst = index === 0;
-              console.log(`>>>>>> ${firstHost.what}`);
-              // Replace all hosts in the script with it.
-              commands.forEach(command => {
-                if (command.type === 'url') {
-                  command.which = firstHost.which;
-                  command.what = firstHost.what;
-                }
-              });
-              // Identify the stage of the host.
-              let stage = 'more';
-              if (isFirst) {
-                stage = hosts.length > 1 ? 'start' : 'all';
-              }
-              else {
-                stage = hosts.length > 1 ? 'more' : 'end';
-              }
-              // Initialize an array of the acts as a copy of the commands.
-              const acts = JSON.parse(JSON.stringify(commands));
-              // Process the commands on the host.
-              results.push(await scriptHandler(what, strict, acts, stage, index, server));
-            }
-            return results;
+          if (isValidBatch(batch)) {
+            return await runScriptWithBatch(script, batch, server);
           }
           // Otherwise, i.e. if the batch is invalid:
           else {
