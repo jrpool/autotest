@@ -108,11 +108,13 @@ exports.parameters = (
     const waveResult = testData.wave.result.categories;
     const waveItems = [];
     ['error', 'contrast', 'alert'].forEach(category => {
-      waveItems.push(
-        ... Object
-        .entries(waveResult[category].items)
-        .map(entry => `<li>${category}/${entry[0]}: ${entry[1].description}</li>`)
-      );
+      if (waveResult[category].items) {
+        waveItems.push(
+          ... Object
+          .entries(waveResult[category].items)
+          .map(entry => `<li>${category}/${entry[0]}: ${entry[1].description}</li>`)
+        );
+      }
     });
     const waveFailures = waveItems.join(innerJoiner);
     paramData.waveResult = packageFailText(deficit.wave, 'wave', waveFailures);
