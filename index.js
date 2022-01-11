@@ -12,7 +12,7 @@ const http = require('http');
 // Module to create an HTTPS server and client.
 const https = require('https');
 
-const {getWhats, isValidScript, isValidBatch, isValidValidator, scriptHandler, runScriptWithBatch} = require('./core');
+const {getWhats, isValidScript, isValidBatch, isValidValidator, scriptHandler, runScriptWithBatch, generateHtmlReportFromData} = require('./core');
 
 // ########## CONSTANTS
 // Set debug to true to add debugging features.
@@ -233,6 +233,42 @@ const requestHandler = (request, response) => {
         query.reportDir = process.env.REPORTDIR || '';
         // Render the page.
         render('', 'all', 'validate', query, response);
+      } else if (pathName === '/api/scan') {
+        // TODO: replace assumptions
+        const SCRIPT_NAME = 'short';
+        const DOCS_SUBDIR = 'asp08';
+
+        query.reportDir = process.env.REPORTDIR;
+        const server = {query, response, render: () => {}};
+        const scriptDir = process.env.SCRIPTDIR || '';
+        const scriptJSON = await fs.readFile(`${scriptDir}/${SCRIPT_NAME}.json`, 'utf8');
+        const script = JSON.parse(scriptJSON);
+        const batch = {
+          what: 'Automated Accessibility Scan',
+          hosts: query.url?.split(',').map((which, index) => (
+            {
+              which,
+              what: `Page ${index + 1}: ${which}`
+            }))
+        };
+        if (isValidScript(script) && isValidBatch(batch)) {
+          const reports = await runScriptWithBatch(script, batch, server);
+          const resultsWithDocs = await Promise.all(reports.map(async report => {
+            const template = await fs.readFile(`./docTemplates/${DOCS_SUBDIR}/index.html`, 'utf8');
+            const {parameters} = require(`./docTemplates/${DOCS_SUBDIR}/index`);
+            const doc =  await generateHtmlReportFromData('filename', report, template, parameters);
+            return {
+              report,
+              doc,
+            };
+          }));
+          response.write(resultsWithDocs.map(({doc}) => doc).join('\n'));
+          response.end();
+        }
+        else {
+          // Serve an error message.
+          serveMessage('ERROR: script or batch invalid', response);
+        }
       }
       // Otherwise, i.e. if the URL is invalid:
       else {
