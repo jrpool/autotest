@@ -316,15 +316,11 @@ const requestHandler = (request, response) => {
           if (isValidScript(script)) {
             const {what, strict, commands} = script;
             console.log(`>>>>>>>> ${scriptName}: ${what}`);
-            const server = {
-              render,
-              query,
-              response,
-            };
+            const server = { render, query, response };
             // If there is no batch:
             if (batchName === 'None') {
               // Process the script, using the commands as the initial acts.
-              return await scriptHandler(what, strict, commands, 'all', -1, server);
+              await scriptHandler(what, strict, commands, 'all', -1, server);
             }
             // Otherwise, i.e. if there is a batch:
             else {
@@ -336,7 +332,7 @@ const requestHandler = (request, response) => {
                 const batch = JSON.parse(batchJSON);
                 // If the batch is valid:
                 if (isValidBatch(batch)) {
-                  return await runScriptWithBatch(script, batch, server);
+                  await runScriptWithBatch(script, batch, server);
                 }
                 // Otherwise, i.e. if the batch is invalid:
                 else {
@@ -377,7 +373,8 @@ const requestHandler = (request, response) => {
             console.log(`>>>>>>>> ${validatorName}: ${what}`);
             // Process it, using the commands as the initial acts.
             const {what, strict, commands} = script;
-            scriptHandler(what, strict, commands, 'all', -1);
+            const server = { render, query, response };
+            scriptHandler(what, strict, commands, 'all', -1, server);
           }
           // Otherwise, i.e. if the validator is invalid:
           else {
