@@ -236,7 +236,7 @@ const requestHandler = (request, response) => {
       } else if (pathName === '/api/scan') {
         // TODO: replace assumptions
         const SCRIPT_NAME = 'short';
-        const DOCS_SUBDIR = 'asp08';
+        const DOCS_SUBDIR = 'passio';
         const urlToFilename = (url) => url.replace('://', '_').replace('.', '_').replace('/', '_');
 
         query.reportDir = process.env.REPORTDIR;
@@ -248,13 +248,14 @@ const requestHandler = (request, response) => {
         const urls = query.url?.split(',');
         const batch = {
           what: 'Automated Accessibility Scan',
-          hosts: urls.map((which, index) => (
+          hosts: urls.map(which => (
             {
               which,
-              what: `Page ${index + 1}: ${which}`
+              what: which,
             }))
         };
         if (isValidScript(script) && isValidBatch(batch)) {
+          // First, respond immediately with a preview of where reports will be generated
           const progressResponse = `
           <main>
           Audit in progress. Your report(s) will be available at:
@@ -262,30 +263,25 @@ const requestHandler = (request, response) => {
           ${urls.map(url => {
     const reportUrl = `/reports/${urlToFilename(url)}.html`;
     return `<li><a href='${reportUrl}'>${reportUrl}</a></li>\n`;
-  })}
+  }).join('')}
           </ul>
   </main>
           `;
-
           response.setHeader('Content-Type', 'text/html; charset=UTF-8');
           response.write(progressResponse);
           response.end();
 
+          // Then start running audits and generating reports
           const REPORT_DIR = process.env.REPORTDIR || '';
           const reports = await runScriptWithBatch(script, batch, server);
-          const resultsWithDocs = await Promise.all(reports.map(async report => {
+          await Promise.all(reports.map(async report => {
             const template = await fs.readFile(`./docTemplates/${DOCS_SUBDIR}/index.html`, 'utf8');
             const {parameters} = require(`./docTemplates/${DOCS_SUBDIR}/index`);
             const doc =  await generateHtmlReportFromData('filename', report, template, parameters);
             const reportUrl = report.acts.filter(act => act.type === 'url')[0].which;
             const reportFilename = urlToFilename(reportUrl);
             await fs.writeFile(`${REPORT_DIR}/html/${reportFilename}.html`, doc);
-            return {
-              report,
-              doc,
-            };
           }));
-
         }
         else {
           // Serve an error message.
