@@ -237,33 +237,55 @@ const requestHandler = (request, response) => {
         // TODO: replace assumptions
         const SCRIPT_NAME = 'short';
         const DOCS_SUBDIR = 'asp08';
+        const urlToFilename = (url) => url.replace('://', '_').replace('.', '_').replace('/', '_');
 
         query.reportDir = process.env.REPORTDIR;
         const server = {query, response, render: () => {}};
         const scriptDir = process.env.SCRIPTDIR || '';
         const scriptJSON = await fs.readFile(`${scriptDir}/${SCRIPT_NAME}.json`, 'utf8');
         const script = JSON.parse(scriptJSON);
+
+        const urls = query.url?.split(',');
         const batch = {
           what: 'Automated Accessibility Scan',
-          hosts: query.url?.split(',').map((which, index) => (
+          hosts: urls.map((which, index) => (
             {
               which,
               what: `Page ${index + 1}: ${which}`
             }))
         };
         if (isValidScript(script) && isValidBatch(batch)) {
+          const progressResponse = `
+          <main>
+          Audit in progress. Your report(s) will be available at:
+          <ul>
+          ${urls.map(url => {
+    const reportUrl = `/reports/${urlToFilename(url)}`;
+    return `<li><a href='${reportUrl}'>${reportUrl}</a></li>\n`;
+  })}
+          </ul>
+  </main>
+          `;
+
+          response.setHeader('Content-Type', 'text/html; charset=UTF-8');
+          response.write(progressResponse);
+          response.end();
+
+          const REPORT_DIR = process.env.REPORTDIR || '';
           const reports = await runScriptWithBatch(script, batch, server);
           const resultsWithDocs = await Promise.all(reports.map(async report => {
             const template = await fs.readFile(`./docTemplates/${DOCS_SUBDIR}/index.html`, 'utf8');
             const {parameters} = require(`./docTemplates/${DOCS_SUBDIR}/index`);
             const doc =  await generateHtmlReportFromData('filename', report, template, parameters);
+            const reportUrl = report.acts.filter(act => act.type === 'url')[0].which;
+            const reportFilename = urlToFilename(reportUrl);
+            await fs.writeFile(`${REPORT_DIR}/html/${reportFilename}.html`, doc);
             return {
               report,
               doc,
             };
           }));
-          response.write(resultsWithDocs.map(({doc}) => doc).join('\n'));
-          response.end();
+
         }
         else {
           // Serve an error message.
