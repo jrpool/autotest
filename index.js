@@ -260,7 +260,7 @@ const requestHandler = (request, response) => {
           Audit in progress. Your report(s) will be available at:
           <ul>
           ${urls.map(url => {
-    const reportUrl = `/reports/${urlToFilename(url)}`;
+    const reportUrl = `/reports/${urlToFilename(url)}.html`;
     return `<li><a href='${reportUrl}'>${reportUrl}</a></li>\n`;
   })}
           </ul>
