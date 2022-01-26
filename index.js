@@ -15,6 +15,10 @@ const https = require('https');
 const {getWhats, isValidScript, isValidBatch, isValidValidator, scriptHandler, runScriptWithBatch, generateHtmlReportFromData} = require('./core');
 
 const postToSlack = (text) => {
+  if (!process.env.SLACK_WEBHOOK_URL) {
+    console.error('SLACK_WEBHOOK_URL is not set, not posting to Slack');
+    return;
+  }
   const req = https.request(process.env.SLACK_WEBHOOK_URL, {
     port: 443,
     method: 'POST',
