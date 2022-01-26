@@ -14,6 +14,23 @@ const https = require('https');
 
 const {getWhats, isValidScript, isValidBatch, isValidValidator, scriptHandler, runScriptWithBatch, generateHtmlReportFromData} = require('./core');
 
+const postToSlack = (text) => {
+  const req = https.request(process.env.SLACK_WEBHOOK_URL, {
+    port: 443,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  }, res => {
+    console.log(`slack webhook - statusCode: ${res.statusCode}`);
+  });
+  req.on('error', error => {
+    console.error('slack webhook - error', error);
+  });
+  req.write(JSON.stringify({text}));
+  req.end();
+};
+
 // ########## CONSTANTS
 // Set debug to true to add debugging features.
 const protocol = process.env.PROTOCOL || 'https';
@@ -282,6 +299,14 @@ const requestHandler = (request, response) => {
             const reportFilename = urlToFilename(reportUrl);
             await fs.writeFile(`${REPORT_DIR}/html/${reportFilename}.html`, doc);
           }));
+
+          const slackMessageContent = `
+          Audits complete: \n ${urls.map(url => {
+    const reportUrl = `https://${request.headers.host}/reports/${urlToFilename(url)}.html`;
+    return `- ${reportUrl}`;
+  }).join('\n')}
+          `;
+          postToSlack(slackMessageContent);
         }
         else {
           // Serve an error message.
