@@ -197,11 +197,18 @@ const requestHandler = (request, response) => {
     const query = {};
     // Allow scanning requests over GET or POST
     if (pathName === '/api/scan') {
-      const searchParams = url.searchParams;
+      let searchParams;
+      if (method === 'GET') {
+        searchParams = url.searchParams;
+      } else if (method === 'POST') {
+        const queryString = Buffer.concat(bodyParts).toString();
+        searchParams = new URLSearchParams(queryString);
+      }
       searchParams.forEach((value, name) => {
         query[name] = value;
       });
       const urls = query.url?.split(',') ?? query.text?.split(',') ?? [];
+
 
       // TODO: replace assumptions
       const SCRIPT_NAME = 'short';
