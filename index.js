@@ -195,8 +195,77 @@ const requestHandler = (request, response) => {
       pathName = '/';
     }
     const query = {};
+    // Allow scanning requests over GET or POST
+    if (pathName === '/api/scan') {
+      const searchParams = url.searchParams;
+      searchParams.forEach((value, name) => {
+        query[name] = value;
+      });
+      const urls = query.url?.split(',') ?? query.text?.split(',') ?? [];
+
+      // TODO: replace assumptions
+      const SCRIPT_NAME = 'short';
+      const DOCS_SUBDIR = 'passio';
+      const urlToFilename = (auditUrl) => auditUrl.replace('://', '_').replace('.', '_').replace('/', '_');
+
+      query.reportDir = process.env.REPORTDIR;
+      const server = {query, response, render: () => {}};
+      const scriptDir = process.env.SCRIPTDIR || '';
+      const scriptJSON = await fs.readFile(`${scriptDir}/${SCRIPT_NAME}.json`, 'utf8');
+      const script = JSON.parse(scriptJSON);
+
+      const batch = {
+        what: 'Automated Accessibility Scan',
+        hosts: urls.map(which => (
+          {
+            which,
+            what: which,
+          }))
+      };
+      if (isValidScript(script) && isValidBatch(batch)) {
+        // First, respond immediately with a preview of where reports will be generated
+        const progressResponse = `
+          <main>
+          Audit in progress. Your report(s) will be available at:
+          <ul>
+          ${urls.map(url => {
+    const reportUrl = `/reports/${urlToFilename(url)}.html`;
+    return `<li><a href='${reportUrl}'>${reportUrl}</a></li>\n`;
+  }).join('')}
+          </ul>
+  </main>
+          `;
+        response.setHeader('Content-Type', 'text/html; charset=UTF-8');
+        response.write(progressResponse);
+        response.end();
+
+        // Then start running audits and generating reports
+        const REPORT_DIR = process.env.REPORTDIR || '';
+        const reports = await runScriptWithBatch(script, batch, server);
+        await Promise.all(reports.map(async report => {
+          const template = await fs.readFile(`./docTemplates/${DOCS_SUBDIR}/index.html`, 'utf8');
+          const {parameters} = require(`./docTemplates/${DOCS_SUBDIR}/index`);
+          const doc =  await generateHtmlReportFromData('filename', report, template, parameters);
+          const reportUrl = report.acts.filter(act => act.type === 'url')[0].which;
+          const reportFilename = urlToFilename(reportUrl);
+          await fs.writeFile(`${REPORT_DIR}/html/${reportFilename}.html`, doc);
+        }));
+
+        const slackMessageContent = `
+          Audits complete: \n ${urls.map(url => {
+    const reportUrl = `https://${request.headers.host}/reports/${urlToFilename(url)}.html`;
+    return `- ${reportUrl}`;
+  }).join('\n')}
+          `;
+        postToSlack(slackMessageContent);
+      }
+      else {
+        // Serve an error message.
+        serveMessage('ERROR: script or batch invalid', response);
+      }
+    } 
     // If the request method is GET:
-    if (method === 'GET') {
+    else if (method === 'GET') {
       // Identify a query object, presupposing no query name occurs twice.
       const searchParams = url.searchParams;
       searchParams.forEach((value, name) => {
@@ -254,68 +323,6 @@ const requestHandler = (request, response) => {
         query.reportDir = process.env.REPORTDIR || '';
         // Render the page.
         render('', 'all', 'validate', query, response);
-      } else if (pathName === '/api/scan') {
-        // TODO: replace assumptions
-        const SCRIPT_NAME = 'short';
-        const DOCS_SUBDIR = 'passio';
-        const urlToFilename = (url) => url.replace('://', '_').replace('.', '_').replace('/', '_');
-
-        query.reportDir = process.env.REPORTDIR;
-        const server = {query, response, render: () => {}};
-        const scriptDir = process.env.SCRIPTDIR || '';
-        const scriptJSON = await fs.readFile(`${scriptDir}/${SCRIPT_NAME}.json`, 'utf8');
-        const script = JSON.parse(scriptJSON);
-
-        const urls = query.url?.split(',');
-        const batch = {
-          what: 'Automated Accessibility Scan',
-          hosts: urls.map(which => (
-            {
-              which,
-              what: which,
-            }))
-        };
-        if (isValidScript(script) && isValidBatch(batch)) {
-          // First, respond immediately with a preview of where reports will be generated
-          const progressResponse = `
-          <main>
-          Audit in progress. Your report(s) will be available at:
-          <ul>
-          ${urls.map(url => {
-    const reportUrl = `/reports/${urlToFilename(url)}.html`;
-    return `<li><a href='${reportUrl}'>${reportUrl}</a></li>\n`;
-  }).join('')}
-          </ul>
-  </main>
-          `;
-          response.setHeader('Content-Type', 'text/html; charset=UTF-8');
-          response.write(progressResponse);
-          response.end();
-
-          // Then start running audits and generating reports
-          const REPORT_DIR = process.env.REPORTDIR || '';
-          const reports = await runScriptWithBatch(script, batch, server);
-          await Promise.all(reports.map(async report => {
-            const template = await fs.readFile(`./docTemplates/${DOCS_SUBDIR}/index.html`, 'utf8');
-            const {parameters} = require(`./docTemplates/${DOCS_SUBDIR}/index`);
-            const doc =  await generateHtmlReportFromData('filename', report, template, parameters);
-            const reportUrl = report.acts.filter(act => act.type === 'url')[0].which;
-            const reportFilename = urlToFilename(reportUrl);
-            await fs.writeFile(`${REPORT_DIR}/html/${reportFilename}.html`, doc);
-          }));
-
-          const slackMessageContent = `
-          Audits complete: \n ${urls.map(url => {
-    const reportUrl = `https://${request.headers.host}/reports/${urlToFilename(url)}.html`;
-    return `- ${reportUrl}`;
-  }).join('\n')}
-          `;
-          postToSlack(slackMessageContent);
-        }
-        else {
-          // Serve an error message.
-          serveMessage('ERROR: script or batch invalid', response);
-        }
       }
       // Otherwise, i.e. if the URL is invalid:
       else {
