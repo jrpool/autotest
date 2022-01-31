@@ -259,7 +259,7 @@ const requestHandler = (request, response) => {
           const reportFilename = urlToFilename(auditUrl);
           await fs.writeFile(`${REPORT_DIR}/${reportFilename}.html`, doc);
           // Generate PDF report
-          await html_to_pdf.generatePdf({content: doc}, {format: 'A4', path:`${REPORT_DIR}/${reportFilename}.pdf`});
+          await html_to_pdf.generatePdf({content: doc}, {format: 'A4', path:`${REPORT_DIR}/${reportFilename}.pdf`, margin: {top: 16, bottom: 16}});
         }));
 
         const slackMessageContent = `
