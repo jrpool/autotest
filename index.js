@@ -249,7 +249,7 @@ const requestHandler = (request, response) => {
 
         // Then start running audits and generating reports
         const REPORT_DIR = process.env.REPORTDIR || '';
-        postToSlack('Starting audit');
+        postToSlack(`Starting audit (${urls})`);
         const reports = await runScriptWithBatch(script, batch, server);
         await Promise.all(reports.map(async report => {
           // Generate html report
