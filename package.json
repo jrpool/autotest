@@ -27,6 +27,7 @@
     "accessibility-checker": "*",
     "axe-playwright": "*",
     "dotenv": "*",
+    "html-pdf-node": "^1.0.8",
     "pixelmatch": "*",
     "playwright": "^1.14.0"
   },

@@ -11,6 +11,8 @@ require('dotenv').config();
 const http = require('http');
 // Module to create an HTTPS server and client.
 const https = require('https');
+// Create PDF reports
+const html_to_pdf = require('html-pdf-node');
 
 const {getWhats, isValidScript, isValidBatch, isValidValidator, scriptHandler, runScriptWithBatch, generateHtmlReportFromData} = require('./core');
 
@@ -213,7 +215,9 @@ const requestHandler = (request, response) => {
       // TODO: replace assumptions
       const SCRIPT_NAME = 'short';
       const DOCS_SUBDIR = 'passio';
-      const urlToFilename = (auditUrl) => auditUrl.replace('://', '_').replace('.', '_').replace('/', '_');
+      // strip off protocol, replace slashes with underscores
+      const urlToFilename = (auditUrl) => auditUrl.replace('https://', '').replace('http://', '').replace('/', '_');
+      const urlToReportUrl = (auditUrl) => `https://${request.headers.host}/reports/${urlToFilename(auditUrl)}.pdf`;
 
       query.reportDir = process.env.REPORTDIR;
       const server = {query, response, render: () => {}};
@@ -235,10 +239,7 @@ const requestHandler = (request, response) => {
           <main>
           Audit in progress. Your report(s) will be available at:
           <ul>
-          ${urls.map(url => {
-    const reportUrl = `/reports/${urlToFilename(url)}.html`;
-    return `<li><a href='${reportUrl}'>${reportUrl}</a></li>\n`;
-  }).join('')}
+          ${urls.map(url => `<li><a href='${urlToReportUrl(url)}'>${urlToFilename(url)}.pdf</a></li>\n`).join('')}
           </ul>
   </main>
           `;
@@ -250,19 +251,20 @@ const requestHandler = (request, response) => {
         const REPORT_DIR = process.env.REPORTDIR || '';
         const reports = await runScriptWithBatch(script, batch, server);
         await Promise.all(reports.map(async report => {
+          // Generate html report
           const template = await fs.readFile(`./docTemplates/${DOCS_SUBDIR}/index.html`, 'utf8');
           const {parameters} = require(`./docTemplates/${DOCS_SUBDIR}/index`);
           const doc =  await generateHtmlReportFromData('filename', report, template, parameters);
-          const reportUrl = report.acts.filter(act => act.type === 'url')[0].which;
-          const reportFilename = urlToFilename(reportUrl);
-          await fs.writeFile(`${REPORT_DIR}/html/${reportFilename}.html`, doc);
+          const auditUrl = report.acts.filter(act => act.type === 'url')[0].which;
+          const reportFilename = urlToFilename(auditUrl);
+          await fs.writeFile(`${REPORT_DIR}/${reportFilename}.html`, doc);
+          // Generate PDF report
+          await html_to_pdf.generatePdf({content: doc}, {format: 'A4', path:`${REPORT_DIR}/${reportFilename}.pdf`});
         }));
 
         const slackMessageContent = `
-          Audits complete: \n ${urls.map(url => {
-    const reportUrl = `https://${request.headers.host}/reports/${urlToFilename(url)}.html`;
-    return `- ${reportUrl}`;
-  }).join('\n')}
+          Audits complete:
+          ${urls.map(url => `- ${urlToReportUrl(url)}`).join('\n')}
           `;
         postToSlack(slackMessageContent);
       }
