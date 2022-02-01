@@ -21,7 +21,6 @@ exports.scorer = acts => {
     focAll: '',
     focInd: '',
     focOp: '',
-    hover: '',
     ibm: '',
     labClash: '',
     linkUl: '',
@@ -65,7 +64,6 @@ exports.scorer = acts => {
     focAll: null,
     focInd: null,
     focOp: null,
-    hover: null,
     ibm: null,
     labClash: null,
     linkUl: null,
@@ -301,22 +299,6 @@ exports.scorer = acts => {
             inferences.focOp = 150;
           }
           increment('focOp');
-        }
-        else if (which === 'hover') {
-          facts = test.result && test.result.totals;
-          if (facts) {
-            rules.hover = 'multiply elements changing page on hover by 4, made visible by 2, with directly changed opacity by 0.1, with indirectly changed opacity by 0.2, unhoverable by 2; sum';
-            deficit.hover
-              = 4 * facts.triggers
-              + 2 * facts.madeVisible
-              + Math.floor(0.1 * facts.opacityChanged)
-              + Math.floor(0.2 * facts.opacityAffected)
-              + 2 * facts.unhoverables;
-          }
-          else {
-            inferences.hover = 150;
-          }
-          increment('hover');
         }
         else if (which === 'labClash') {
           facts = test.result && test.result.totals;
