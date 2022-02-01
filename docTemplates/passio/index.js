@@ -185,16 +185,6 @@ exports.parameters = (
   else {
     paramData.focOpResult = customSucceedText('focOp');
   }
-  if (deficit.hover) {
-    const failures = customFailures(testData.hover.result.totals);
-    paramData.hoverResult = customResult(deficit.hover, 'hover', failures);
-  }
-  else if (scoreData.inferences.hover) {
-    paramData.hoverResult = testCrashText(deficitData.hover, 'hover');
-  }
-  else {
-    paramData.hoverResult = customSucceedText('hover');
-  }
   if (deficit.labClash) {
     const {totals} = testData.labClash.result;
     delete totals.wellLabeled;

@@ -383,21 +383,6 @@
       <code>TEXTAREA</code>), or has an <code>onclick</code> attribute. The test considers an element Tab-focusable if
       its <code>tabIndex</code> property has the value 0.
     </p>
-    <h3><code>hover</code></h3>
-    __hoverResult__
-    <p>The <code>hover</code> test detects unexpected effects of hovering. The normal purpose of hovering is to show the
-      user which element is currently being actually or effectively hovered over and would therefore be the target of a
-      mouse click. When hovering does more than that, the additional effects can confuse or startle users, especially
-      those without precise mouse control. The test detects whether hovering makes elements visible, changes the
-      opacities of elements, affects the opacities of elements by changing the opacities of their ancestors, and fails
-      to reach elements. Only visible elements that have <code>A</code>, <code>BUTTON</code>, and <code>LI</code> tag
-      names or have <code>onmouseenter</code> or <code>onmouseover</code> attributes are considered as triggers of such
-      effects when hovered over. The effects of hovering are inspected for the descendants of the grandparent of the
-      trigger if the trigger has the tag name <code>A</code> or <code>BUTTON</code>, or otherwise the descendants of the
-      trigger. The only elements counted as being made visible by hovering are those with tag names <code>A</code>,
-      <code>BUTTON</code>, <code>INPUT</code>, and <code>SPAN</code>, and those with <code>role="menuitem"</code>
-      attributes.
-    </p>
     <h3><code>labClash</code></h3>
     __labClashResult__
     <p>The <code>labClash</code> test detects defects in the labeling of buttons, non-hidden inputs, select lists, and
