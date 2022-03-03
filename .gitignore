@@ -12,6 +12,3 @@ ibmtemp/
 
 # System files
 .DS_Store
-
-# Development configurations
-.vscode/
