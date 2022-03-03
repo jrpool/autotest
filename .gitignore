@@ -12,3 +12,5 @@ ibmtemp/
 
 # System files
 .DS_Store
+
+/my-autotest
