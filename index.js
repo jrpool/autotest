@@ -216,9 +216,15 @@ const requestHandler = (request, response) => {
       const SCRIPT_NAME = 'short';
       // strip off protocol, replace slashes with underscores
       
-      // TODO: add optional second argument to add summary to urlToFilename
-      const urlToFilename = (auditUrl) => auditUrl.replace('https://', '').replace('http://', '').replace('/', '_');
-      const urlToReportUrl = (auditUrl) => `https://${request.headers.host}/reports/${urlToFilename(auditUrl)}.pdf`;
+      const urlToFilename = (auditUrl, isSummary = false) => {
+        let newUrl = auditUrl;
+        if (isSummary) {
+          newUrl = `${auditUrl}-summary`;
+        }
+        return newUrl.replace('https://', '').replace('http://', '').replace('/', '_');
+      };
+
+      const urlToReportUrl = (auditUrl, isSummary = false) => `https://${request.headers.host}/reports/${urlToFilename(auditUrl, isSummary)}.pdf`;
 
       query.reportDir = process.env.REPORTDIR;
       const server = {query, response, render: () => {}};
@@ -236,12 +242,13 @@ const requestHandler = (request, response) => {
       };
       if (isValidScript(script) && isValidBatch(batch)) {
         // First, respond immediately with a preview of where reports will be generated
-        // TODO: add a second <li> to summary 
         const progressResponse = `
           <main>
           Audit in progress. Your report(s) will be available at:
           <ul>
-          ${urls.map(url => `<li><a href='${urlToReportUrl(url)}'>${urlToFilename(url)}.pdf</a></li>\n`).join('')}
+          ${urls.map(url => `<li><a href='${urlToReportUrl(url)}'>${urlToFilename(url)}.pdf</a></li>\n
+                             <li><a href='${urlToReportUrl(url, true)}'>${urlToFilename(url, true)}.pdf</a></li>\n
+          `).join('')}
           </ul>
   </main>
           `;
