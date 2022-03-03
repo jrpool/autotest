@@ -214,8 +214,9 @@ const requestHandler = (request, response) => {
 
       // TODO: replace assumptions
       const SCRIPT_NAME = 'short';
-      const DOCS_SUBDIR = 'passio';
       // strip off protocol, replace slashes with underscores
+      
+      // add optional second argument to add summary to urlToFilename
       const urlToFilename = (auditUrl) => auditUrl.replace('https://', '').replace('http://', '').replace('/', '_');
       const urlToReportUrl = (auditUrl) => `https://${request.headers.host}/reports/${urlToFilename(auditUrl)}.pdf`;
 
@@ -235,6 +236,7 @@ const requestHandler = (request, response) => {
       };
       if (isValidScript(script) && isValidBatch(batch)) {
         // First, respond immediately with a preview of where reports will be generated
+        // TODO: add a second <li> to summary 
         const progressResponse = `
           <main>
           Audit in progress. Your report(s) will be available at:
@@ -252,17 +254,21 @@ const requestHandler = (request, response) => {
         postToSlack(`Starting audit (${urls})`);
         const reports = await runScriptWithBatch(script, batch, server);
         await Promise.all(reports.map(async report => {
-          // Generate html report
-          const template = await fs.readFile(`./docTemplates/${DOCS_SUBDIR}/index.html`, 'utf8');
-          const {parameters} = require(`./docTemplates/${DOCS_SUBDIR}/index`);
-          const doc =  await generateHtmlReportFromData('filename', report, template, parameters);
-          const auditUrl = report.acts.filter(act => act.type === 'url')[0].which;
-          const reportFilename = urlToFilename(auditUrl);
-          await fs.writeFile(`${REPORT_DIR}/${reportFilename}.html`, doc);
-          // Generate PDF report
-          await html_to_pdf.generatePdf({content: doc}, {format: 'A4', path:`${REPORT_DIR}/${reportFilename}.pdf`, margin: {top: 16, bottom: 16}});
+          await Promise.all(['passio', 'passio-summary'].map(async (DOC_SUBDIR, index) => {
+            // Generate html report
+            const template = await fs.readFile(`./docTemplates/${DOC_SUBDIR}/index.html`, 'utf8');
+            const {parameters} = require(`./docTemplates/${DOC_SUBDIR}/index`);
+            const doc =  await generateHtmlReportFromData('filename', report, template, parameters);
+            const auditUrl = report.acts.filter(act => act.type === 'url')[0].which;
+            const reportFilename = index === 1 ? `${urlToFilename(auditUrl)}-summary` : urlToFilename(auditUrl) ;
+            await fs.writeFile(`${REPORT_DIR}/${reportFilename}.html`, doc);
+            // Generate PDF report
+            await html_to_pdf.generatePdf({content: doc}, {format: 'A4', path:`${REPORT_DIR}/${reportFilename}.pdf`, margin: {top: 16, bottom: 16}});
+          }));
         }));
+        
 
+        // TODO: add summary report url
         const slackMessageContent = `
           Audits complete:
           ${urls.map(url => `- ${urlToReportUrl(url)}`).join('\n')}
