@@ -216,7 +216,7 @@ const requestHandler = (request, response) => {
       const SCRIPT_NAME = 'short';
       // strip off protocol, replace slashes with underscores
       
-      // add optional second argument to add summary to urlToFilename
+      // TODO: add optional second argument to add summary to urlToFilename
       const urlToFilename = (auditUrl) => auditUrl.replace('https://', '').replace('http://', '').replace('/', '_');
       const urlToReportUrl = (auditUrl) => `https://${request.headers.host}/reports/${urlToFilename(auditUrl)}.pdf`;
 
