@@ -211,16 +211,15 @@ const requestHandler = (request, response) => {
       });
       const urls = query.url?.split(',') ?? query.text?.split(',') ?? [];
 
-
-      // TODO: replace assumptions
+      // TODO: this endpoint only supports one hardcoded report
       const SCRIPT_NAME = 'short';
-      // strip off protocol, replace slashes with underscores
       
       const urlToFilename = (auditUrl, isSummary = false) => {
         let newUrl = auditUrl;
         if (isSummary) {
           newUrl = `${auditUrl}-summary`;
         }
+        // strip off protocol, replace slashes with underscores
         return newUrl.replace('https://', '').replace('http://', '').replace('/', '_');
       };
 
@@ -274,11 +273,12 @@ const requestHandler = (request, response) => {
           }));
         }));
         
-
-        // TODO: add summary report url
         const slackMessageContent = `
           Audits complete:
-          ${urls.map(url => `- ${urlToReportUrl(url)}`).join('\n')}
+          ${urls.map(url => `
+            - ${urlToReportUrl(url)}\n
+            - ${urlToReportUrl(url, true)}
+            `).join('\n')}
           `;
         postToSlack(slackMessageContent);
       }
